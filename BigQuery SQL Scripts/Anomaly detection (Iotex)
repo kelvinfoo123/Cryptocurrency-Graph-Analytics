@@ -1,0 +1,58 @@
+WITH sender_receiver_pair AS (
+  SELECT 
+    concat(extract(year from timestamp), '-', extract(month from timestamp)) as `Date`, 
+    sender, 
+    recipient, 
+    count(*) as num_transactions, 
+    sum(amount) as tot_amount,
+    max(amount) as max_amount,
+    min(amount) as min_amount,
+    TIMESTAMP_DIFF(max(timestamp), min(timestamp), SECOND) as min_time_diff
+  FROM `bigquery-public-data.crypto_iotex.transaction_logs` 
+  WHERE sender != '' AND recipient != '' 
+  GROUP BY concat(extract(year from timestamp), '-', extract(month from timestamp)), sender, recipient
+  ORDER BY `Date`
+),
+out_degree_calculation AS (
+  SELECT 
+    `Date`, 
+    sender, 
+    count(*) as out_degree,
+    sum(num_transactions) as tot_transactions, 
+    sum(tot_amount) as total_amount,
+    avg(tot_amount) as mean_amount,
+    max(max_amount) as max_amount,
+    min(min_amount) as min_amount
+  FROM sender_receiver_pair
+  GROUP BY `Date`, sender
+),
+in_degree_calculation AS (
+  SELECT 
+    `Date`,
+    recipient AS sender,
+    count(*) AS in_degree
+  FROM sender_receiver_pair
+  GROUP BY `Date`, recipient
+)
+
+SELECT 
+  o.`Date`, 
+  o.sender, 
+  o.tot_transactions, 
+  o.out_degree,
+  coalesce(i.in_degree, 0) AS in_degree,
+  o.total_amount,
+  o.mean_amount,
+  o.max_amount,
+  o.min_amount,
+  o.avg_amount_per_transactions
+FROM 
+  out_degree_calculation o
+LEFT JOIN 
+  in_degree_calculation i
+ON 
+  o.`Date` = i.`Date` AND o.sender = i.sender
+where
+  o.out_degree >= 5
+ORDER BY 
+  o.`Date`
