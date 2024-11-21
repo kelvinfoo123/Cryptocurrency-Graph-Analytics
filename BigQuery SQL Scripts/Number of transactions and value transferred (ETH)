@@ -1,0 +1,10 @@
+# Did not exclude contract creation
+SELECT 
+CONCAT(EXTRACT(YEAR FROM block_timestamp), '-', EXTRACT(MONTH FROM block_timestamp)) AS `Date`, 
+COUNT(*) AS num_transactions_with_contract_creations, 
+SUM(value) AS total_value_with_contract_creation, 
+AVG(value) AS avg_value_with_contract_creation
+FROM `bigquery-public-data.crypto_ethereum.transactions` 
+WHERE EXTRACT(YEAR FROM block_timestamp) <= 2023
+GROUP BY CONCAT(EXTRACT(YEAR FROM block_timestamp), '-', EXTRACT(MONTH FROM block_timestamp)) 
+ORDER BY `Date` 
