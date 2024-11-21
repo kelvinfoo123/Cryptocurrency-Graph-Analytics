@@ -1,0 +1,65 @@
+WITH 
+eth_first_day AS (
+    SELECT MIN(block_timestamp) AS min_block_timestamp
+    FROM `bigquery-public-data.crypto_ethereum.transactions`
+),
+
+btc_first_day AS (
+    SELECT MIN(block_timestamp) AS min_block_timestamp
+    FROM `bigquery-public-data.crypto_bitcoin.transactions`
+),
+
+doge_first_day AS (
+    SELECT MIN(block_timestamp) AS min_block_timestamp
+    FROM `bigquery-public-data.crypto_dogecoin.transactions`
+),
+
+btc_filtered_transactions AS (
+  SELECT 
+        CONCAT(EXTRACT(YEAR FROM block_timestamp), '-', EXTRACT(MONTH FROM block_timestamp), '-', EXTRACT(DAY FROM block_timestamp)) AS `Date`, 
+        COUNT(*) AS num_transactions, 
+        SUM(outputs.value) AS total_value
+    FROM `bigquery-public-data.crypto_bitcoin.transactions`, 
+    UNNEST(outputs) AS outputs
+    WHERE block_timestamp >= (SELECT min_block_timestamp FROM btc_first_day)
+    AND block_timestamp < TIMESTAMP_ADD((SELECT min_block_timestamp FROM btc_first_day), INTERVAL 365 DAY)
+    GROUP BY `Date`
+), 
+
+eth_filtered_transactions AS (
+    SELECT 
+        CONCAT(EXTRACT(YEAR FROM block_timestamp), '-', EXTRACT(MONTH FROM block_timestamp), '-', EXTRACT(DAY FROM block_timestamp)) AS `Date`, 
+        COUNT(*) AS num_transactions, 
+        SUM(value) AS total_value
+    FROM `bigquery-public-data.crypto_ethereum.transactions`
+    WHERE block_timestamp >= (SELECT min_block_timestamp FROM eth_first_day)
+    AND block_timestamp < TIMESTAMP_ADD((SELECT min_block_timestamp FROM eth_first_day), INTERVAL 365 DAY)
+    GROUP BY `Date`
+), 
+
+doge_filtered_transactions AS (
+  SELECT 
+        CONCAT(EXTRACT(YEAR FROM block_timestamp), '-', EXTRACT(MONTH FROM block_timestamp), '-', EXTRACT(DAY FROM block_timestamp)) AS `Date`, 
+        COUNT(*) AS num_transactions, 
+        SUM(outputs.value) AS total_value
+    FROM `bigquery-public-data.crypto_dogecoin.transactions`, 
+    UNNEST(outputs) AS outputs
+    WHERE block_timestamp >= (SELECT min_block_timestamp FROM doge_first_day)
+    AND block_timestamp < TIMESTAMP_ADD((SELECT min_block_timestamp FROM doge_first_day), INTERVAL 365 DAY)
+    GROUP BY `Date`
+)
+
+(SELECT * , 'BTC' AS currency
+FROM btc_filtered_transactions)
+
+UNION ALL
+
+(SELECT * , 'ETH' AS currency
+FROM eth_filtered_transactions)
+
+UNION ALL
+
+(SELECT * , 'Dogecoin' AS currency
+FROM doge_filtered_transactions)
+
+ORDER BY currency, `Date`
