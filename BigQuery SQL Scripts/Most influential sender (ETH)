@@ -1,0 +1,14 @@
+WITH sender_receiver_pair AS (
+  SELECT 
+  concat(extract(year from block_timestamp), '-', extract(month from block_timestamp)) as `Date`, 
+  from_address as sender, to_address as recipient, count(*) as num_transactions
+  from `bigquery-public-data.crypto_ethereum.transactions` 
+  where from_address != '' and to_address != '' and extract(year from block_timestamp) <= 2023
+  group by concat(extract(year from block_timestamp), '-', extract(month from block_timestamp)), from_address, to_address 
+  order by `Date` 
+)
+
+select `Date`, sender, count(sender) as out_degree 
+from sender_receiver_pair 
+group by `Date`, sender
+having count(sender) >= 1000
