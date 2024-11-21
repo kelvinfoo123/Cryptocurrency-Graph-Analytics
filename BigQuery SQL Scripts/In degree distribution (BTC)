@@ -1,0 +1,25 @@
+WITH sender_receiver_pair AS (
+  SELECT 
+  concat(extract(year from block_timestamp), '-', extract(month from block_timestamp)) as `Date`, 
+  input_addr as sender, output_addr as recipient, count(*) as num_transactions
+  from `bigquery-public-data.crypto_bitcoin.transactions` , 
+  unnest(inputs) as inputs, 
+  unnest(inputs.addresses) as input_addr, 
+  unnest(outputs) as outputs, 
+  unnest(outputs.addresses) as output_addr
+  where input_addr != '' and output_addr != '' and extract(year from block_timestamp) <= 2023 and extract(year from block_timestamp) >= 2019
+  group by concat(extract(year from block_timestamp), '-', extract(month from block_timestamp)), input_addr, output_addr
+  order by `Date` 
+), 
+
+recipient_count as 
+(
+select `Date`, recipient, count(recipient) as in_degree 
+from sender_receiver_pair 
+group by `Date`, recipient
+)
+
+select `Date`, in_degree, count(in_degree) as frequency 
+from
+recipient_count
+group by `Date`, in_degree
