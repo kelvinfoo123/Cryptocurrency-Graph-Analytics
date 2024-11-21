@@ -1,0 +1,19 @@
+WITH sender_receiver_pair AS (
+  SELECT 
+  concat(extract(year from timestamp), '-', extract(month from timestamp)) as `Date`, 
+  sender, recipient, count(*) as num_transactions
+  from `bigquery-public-data.crypto_iotex.transaction_logs` 
+  where sender != '' and recipient != '' 
+  group by concat(extract(year from timestamp), '-', extract(month from timestamp)), sender, recipient
+  order by `Date` 
+)
+
+select `Date`, in_degree, count(in_degree) as frequency 
+from
+
+(select `Date`, recipient, count(recipient) as in_degree 
+from sender_receiver_pair 
+group by `Date`, recipient) 
+
+group by `Date`, in_degree
+order by `Date`, in_degree
