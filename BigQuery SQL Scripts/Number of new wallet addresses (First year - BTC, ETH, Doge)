@@ -1,0 +1,48 @@
+WITH first_day AS (
+  SELECT MIN(block_timestamp) AS min_block_timestamp
+  FROM `bigquery-public-data.crypto_ethereum.transactions`
+),
+
+filtered_transactions AS (
+  SELECT *
+  FROM `bigquery-public-data.crypto_ethereum.transactions`
+  WHERE block_timestamp >= (SELECT min_block_timestamp FROM first_day)
+  AND block_timestamp < TIMESTAMP_ADD((SELECT min_block_timestamp FROM first_day), INTERVAL 365 DAY)
+),
+
+active_address AS 
+(
+  SELECT 
+    EXTRACT(YEAR FROM block_timestamp) AS year, 
+    EXTRACT(MONTH FROM block_timestamp) AS month, 
+    EXTRACT(DAY FROM block_timestamp) AS day, 
+    from_address AS address 
+  FROM filtered_transactions
+
+  UNION ALL 
+
+  SELECT 
+    EXTRACT(YEAR FROM block_timestamp) AS year, 
+    EXTRACT(MONTH FROM block_timestamp) AS month, 
+    EXTRACT(DAY FROM block_timestamp) AS day, 
+    to_address AS address 
+  FROM filtered_transactions
+), 
+
+total_address AS 
+(
+  SELECT 
+    year, 
+    month, 
+    day, 
+    SUM(COUNT(DISTINCT address)) OVER (ORDER BY year, month, day) AS total_address_count
+  FROM active_address 
+  GROUP BY year, month, day
+  ORDER BY year, month, day
+)
+
+SELECT 
+  CONCAT(year, '-', month, '-', day) AS `Date`, 
+  total_address_count - LAG(total_address_count) OVER (ORDER BY year, month, day) AS new_wallet_address
+FROM total_address 
+ORDER BY `Date`
