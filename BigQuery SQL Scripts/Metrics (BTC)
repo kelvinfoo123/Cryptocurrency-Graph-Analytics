@@ -1,0 +1,54 @@
+with num_transaction_value as 
+(
+SELECT 
+CONCAT(EXTRACT(YEAR FROM block_timestamp), '-', EXTRACT(MONTH FROM block_timestamp)) AS `Date`, 
+COUNT(*) AS num_transactions, 
+SUM(outputs.value) AS total_value, 
+FROM `bigquery-public-data.crypto_bitcoin.transactions`, 
+unnest(inputs) as inputs, 
+unnest(outputs) as outputs
+WHERE EXTRACT(YEAR FROM block_timestamp) <= 2023
+GROUP BY CONCAT(EXTRACT(YEAR FROM block_timestamp), '-', EXTRACT(MONTH FROM block_timestamp)) 
+ORDER BY `Date` 
+), 
+
+active_address AS 
+(
+  SELECT 
+  EXTRACT(YEAR FROM block_timestamp) AS year, EXTRACT(MONTH FROM block_timestamp) AS month, addr AS address 
+  FROM `bigquery-public-data.crypto_bitcoin.transactions`, 
+  unnest(inputs) as inputs, 
+  unnest(inputs.addresses) as addr
+  WHERE EXTRACT(YEAR FROM block_timestamp) <= 2023
+
+  UNION ALL 
+
+  SELECT EXTRACT(YEAR FROM block_timestamp) AS year, EXTRACT(MONTH FROM block_timestamp) AS month, addr AS address 
+  FROM `bigquery-public-data.crypto_bitcoin.transactions`, 
+  unnest(outputs) as outputs, 
+  unnest(outputs.addresses) as addr
+  WHERE EXTRACT(YEAR FROM block_timestamp) <= 2023
+
+), 
+
+total_address AS 
+(
+  SELECT year, month, SUM(COUNT(DISTINCT address)) OVER (ORDER BY year, month) AS total_address_count
+  FROM active_address 
+  GROUP BY year, month
+  ORDER BY year, month
+), 
+
+new_address as 
+(SELECT year, month, total_address_count - LAG(total_address_count) OVER (ORDER BY year, month) AS new_wallet_address
+FROM total_address 
+ORDER BY year, month), 
+
+wallet_count as 
+(select concat(year, '-', month) as `Date`, new_wallet_address 
+from new_address)
+
+select tv.`Date`, tv.num_transactions, tv.total_value, wc.new_wallet_address
+from num_transaction_value tv 
+inner join wallet_count wc on wc.`Date` = tv.`Date`
+order by wc.`Date`
