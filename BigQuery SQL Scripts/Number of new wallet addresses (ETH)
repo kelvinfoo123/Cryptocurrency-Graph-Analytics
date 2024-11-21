@@ -1,0 +1,23 @@
+WITH active_address AS 
+(
+  SELECT EXTRACT(YEAR FROM block_timestamp) AS year, EXTRACT(MONTH FROM block_timestamp) AS month, from_address AS address 
+  FROM `bigquery-public-data.crypto_ethereum.transactions` 
+
+  UNION ALL 
+
+  SELECT EXTRACT(YEAR FROM block_timestamp) AS year, EXTRACT(MONTH FROM block_timestamp) AS month, to_address AS address 
+  FROM `bigquery-public-data.crypto_ethereum.transactions` 
+
+), 
+
+total_address AS 
+(
+  SELECT year, month, SUM(COUNT(DISTINCT address)) OVER (ORDER BY year, month) AS total_address_count
+  FROM active_address 
+  GROUP BY year, month 
+  ORDER BY year, month
+)
+
+SELECT year, month, total_address_count - LAG(total_address_count) OVER (ORDER BY year, month) AS new_wallet_address
+FROM total_address 
+ORDER BY year, month
